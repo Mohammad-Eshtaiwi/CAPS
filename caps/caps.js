@@ -1,55 +1,51 @@
-const net = require('net');
-const uuidv4 = require('uuid').v4;
-const PORT = process.env.PORT || 4000;
+module.exports = io => {
+  const caps = io.of('/caps'); // to create a namespace
+  caps.on('connection', socket => {
+    // this will be called when a client connect  to the /slick
+    console.log('Welcome to the Store');
+    let vender = '';
+    let driver = '';
 
-const server = net.createServer();
-server.listen(PORT, () => console.log(`Server is running on ${PORT}`));
+    socket.on('join', room => {
+      socket.join(room); // this will join a specific room
+      console.log(`${room} has joined`);
+      if (room === 'vendor') {
+        vender = caps.to(`${socket.id}`);
+        vender.emit('createPackage');
+      }
+      //   if (room === 'driver') {
+      //     driver = caps.to(`${socket.id}`);
+      //     console.log(driver);
+      //   }
+    });
 
-const socketPool = {};
-//connection is a built in event that will be triggered when a client.connect() is implemented
-// 1 a
-server.on('connection', socket => {
-  console.log('Socket Connected!');
-  const id = `socket-${uuidv4()}`;
-  socketPool[id] = socket;
-  console.log(socketPool);
-  socket.on('data', buffer => dispatchEvent(buffer));
-  socket.on('error', e => console.log('SOCKET ERROR', e.message));
-  socket.on('end', id => delete socketPool[id]);
-});
+    socket.on('event', message => {
+      driver = caps.to('driver');
+      if (message.event === 'newPackage') {
+        log(message.event, message.payload);
+        driver.emit('pickup', message.payload);
+      }
+      if (message.event === 'pickup') {
+        console.log('hiiiii pick up from event');
+        log(message.event, message.payload);
+        log('in-transit', message.payload);
+        console.log('befooore deliver');
+        driver.emit('delivered', message.payload);
+      }
+      console.log('message.event message.event', message.event);
+      if (message.event === 'delivered') {
+        console.log('delivereddelivereddelivered');
+        log(message.event, message.payload);
+        socket.to('vendor').emit('delivered', message.payload.orderID);
+      }
+    });
 
-server.on('error', e => console.log('SERVER ERROR', e.message));
-function broadcast(message) {
-  const payload = JSON.stringify(message);
-  for (let socket in socketPool) {
-    socketPool[socket].write(payload); //6
-  }
-  console.log('this is payload', message);
-  if (message.event === 'new package') log(message.event, message.payload);
-  if (message.event === 'picked up') log(message.event, message.payload);
-  if (message.event === 'delivered') log(message.event, message.payload);
-}
-
-function dispatchEvent(buffer) {
-  console.log('BUFFER? ', buffer);
-  const message = JSON.parse(buffer.toString().trim());
-  console.log('__message__', message);
-  broadcast(message);
-}
-
-// const vendor = require('./vendor');
-
-// mainEvent.on('createPackage', payload => log('create package', payload));
-
-// mainEvent.on('pickUp', payload => {
-//   setTimeout(() => {
-//     log('in-transit', payload);
-//   }, 1000);
-// });
-
-// mainEvent.on('delivered', payload => {
-//   log('delivered', payload);
-// });
+    socket.on('message', payload => {
+      // this will broadcast to all users in the current room ONLY
+      caps.to(currentRoom).emit('message', payload);
+    });
+  });
+};
 
 function log(event, payload) {
   console.log('EVENT', { event, time: new Date(), payload });

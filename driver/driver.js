@@ -1,46 +1,29 @@
-require('dotenv').config;
 const faker = require('faker');
-const net = require('net');
-
-const client = new net.Socket();
-const HOST = process.env.HOST || 'localhost';
-const PORT = process.env.PORT || 4000;
 require('dotenv').config();
+const io = require('socket.io-client');
+const caps = io.connect('http://localhost:3000/caps');
 
-client.connect(PORT, HOST, () => {
-  console.log('Client Connected');
-  // 6
-  client.on('data', bufferData => {
-    const dataObj = JSON.parse(bufferData);
-    if (dataObj.event === 'new package') {
-      pickUp(dataObj.payload);
-    }
-  });
+caps.on('connect', () => {
+  caps.emit('join', 'driver');
 });
-
-function pickUp(payload) {
-  console.log(`DRIVER: picked up ${payload.orderID}`);
+caps.on('pickup', payload => {
   setTimeout(() => {
     const message = {
-      event: 'picked up',
+      event: 'pickup',
       payload,
     };
-    const stringifiedMessage = JSON.stringify(message);
-    client.write(stringifiedMessage);
-    client.on('error', err => console.log('Client Error', err.message));
-  }, 1000);
-  delivered(payload);
-}
+    console.log(`pickup ${message.payload.orderID}`);
+    caps.emit('event', message);
+  }, 1500);
+});
 
-function delivered(payload) {
+caps.on('delivered', payload => {
+  console.log('hiiiiiiiii delevering');
   setTimeout(() => {
     const message = {
       event: 'delivered',
       payload,
     };
-    console.log(`Driver: delivered: ${payload.orderID}`);
-    const stringifiedMessage = JSON.stringify(message);
-    client.write(stringifiedMessage);
-    client.on('error', err => console.log('Client Error', err.message));
+    caps.emit('event', message);
   }, 3000);
-}
+});
